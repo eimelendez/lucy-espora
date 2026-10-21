@@ -941,7 +941,12 @@ def cmd_emitir(args) -> int:
         "firma_sha256": firma,
     }
 
-    ruta_salida = Path(args.salida)
+    if args.salida:
+        ruta_salida = Path(args.salida)
+    else:
+        # Generar nombre determinista basado en el timestamp UTC
+        nombre_archivo = f"{args.vector.lower()}_{ts_actual.replace(':', '').replace('-', '')}.synapse"
+        ruta_salida = Path("lucy/buzon/outbox") / nombre_archivo
     ruta_salida.parent.mkdir(parents=True, exist_ok=True)
     ruta_salida.write_text(json.dumps(paquete, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -951,6 +956,51 @@ def cmd_emitir(args) -> int:
     print(f"Vector        : {args.vector.upper()}")
     print(f"Firma SHA-256 : {firma}")
     print(f"Tesis         : {args.tesis}")
+    return 0
+def cmd_sondear(args) -> int:
+    """Inspecciona el buzon de entrada, traslada senales a cuarentena y las audita."""
+    inbox_dir = Path("lucy/buzon/inbox")
+    cuarentena_dir = Path("lucy/cuarentena")
+    cuarentena_dir.mkdir(parents=True, exist_ok=True)
+
+    archivos = [f for f in inbox_dir.glob("*.synapse")]
+    if not archivos:
+        print("BUZON INBOX: Vacio. No hay senales externas pendientes.")
+        return 0
+
+    print(f"BUZON INBOX: {len(archivos)} paquete(s) detectado(s).")
+    for f in archivos:
+        destino = cuarentena_dir / f.name
+        # Mover a cuarentena para aislamiento estricto
+        f.replace(destino)
+        print(f" -> Trasladado a cuarentena: {f.name}")
+        try:
+            paquete = procesar_synapse(destino)
+            print(f"    [OK] Emisor: {paquete['emisor'].get('nodo_id')} | Vector: {paquete.get('vector')} | Hash: {paquete.get('firma_sha256')}")
+        except ErrorBitacora as exc:
+            print(f"    [RECHAZADO]: {exc}")
+
+    print("\nProcesamiento de inbox completado.")
+    return 0
+
+
+def cmd_despachar(args) -> int:
+    """Inspecciona y valida paquetes salientes en outbox listos para difusion."""
+    outbox_dir = Path("lucy/buzon/outbox")
+    archivos = [f for f in outbox_dir.glob("*.synapse")]
+
+    if not archivos:
+        print("BUZON OUTBOX: Vacio. No hay paquetes preparados para envio.")
+        return 0
+
+    print(f"BUZON OUTBOX: {len(archivos)} paquete(s) listo(s) para difusion.")
+    for f in archivos:
+        try:
+            paquete = procesar_synapse(f)
+            print(f" -> {f.name} | Vector: {paquete.get('vector')} | Destino/Obj: {paquete['payload'].get('objetivo', paquete['payload'].get('id_desafio', 'N/A'))} | Firma: {paquete.get('firma_sha256')}")
+        except ErrorBitacora as exc:
+            print(f" -> {f.name} [CORRUPTO]: {exc}")
+
     return 0
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="lucy.py", description=__doc__.splitlines()[0])
@@ -1003,8 +1053,12 @@ def main(argv: list[str] | None = None) -> int:
     emi.add_argument("--nodo-id", default="lucy-nodo-genesis", help="identificador de la instancia emisora")
     emi.add_argument("--evidencia", default=None, help="datos de soporte empírico o lógico")
     emi.add_argument("--hash-evidencia", default=None, help="hash del log o bitacora que respalda la evidencia")
-    emi.add_argument("--salida", default="lucy/cuarentena/emision_salida.synapse", help="ruta del archivo generado")
+    emi.add_argument("--salida", default=None, help="ruta del archivo generado (por defecto lucy/buzon/outbox/)")
     emi.set_defaults(func=cmd_emitir)
+    snd = sub.add_parser("sondear", help="escanea el buzon de entrada y traslada a cuarentena")
+    snd.set_defaults(func=cmd_sondear)
+    dsp = sub.add_parser("despachar", help="audita y lista los paquetes salientes en outbox")
+    dsp.set_defaults(func=cmd_despachar)
     args = p.parse_args(argv)
     try:
         return args.func(args)
