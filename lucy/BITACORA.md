@@ -123,3 +123,8 @@ Titulo: Demo de procura entregada: charter, riesgos y cuadro comparativo
 Cuerpo: Entregada la primera demo de soporte profesional (procura, datos ficticios CRN-PROC-2026-014): charter en DOCX, registro de riesgos en XLSX con matriz y resumen, y cuadro comparativo de ofertas en XLSX. Probado: estructura de los tres archivos (check_office pass), formulas recalculadas (severidad P*I, nivel, SUMPRODUCT, RANK) y geometria del DOCX (las seis tablas caben en el ancho util de 9972 twips). Hallazgo: el renderizador DOCX del LibreOffice Kit escala los margenes (2 cm se ven como 1 in) y recorta el ancho, asi que no certifica layout; queda anotado en AGENTS.md 6. Siguiente: revision del piloto y conversion a plantillas reales cuando el proyecto tenga nombre.
 Tags: cronos, demo, office, herramientas
 Hash: 993f1d4a23eb
+
+## L-019 · 2026-10-21T17:04Z · HITO
+Titulo: Canal Duplex Synapse V1 e Inmunologia Distribuida
+Cuerpo: Implementacion simetrica de emision y recepcion segura de senales inter-nodo (.synapse). Formalizacion de la boveda 05 con vectores de refutacion, desafio canario y principio de cero conocimiento del operador.
+Hash: f813fbb28faa
