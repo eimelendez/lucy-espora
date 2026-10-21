@@ -1,0 +1,15 @@
+﻿{
+  "protocolo": "LUCY_SYNAPSE_V1",
+  "emisor": {
+    "nodo_id": "lucy-nodo-delta-9",
+    "espora_hash": "9bbe225",
+    "ts": "2026-10-21T18:15:00Z"
+  },
+  "vector": "RESPUESTA_DESAFIO",
+  "payload": {
+    "id_desafio": "CANARIO_LOGICO_01",
+    "token_solucion": "FALACIA_AFIRMACION_DEL_CONSECUENTE:((P->Q)^Q)->P:INVALIDO",
+    "hash_esperado": "962d8cc01521"
+  },
+  "firma_sha256": "ad0326ae1a37"
+}

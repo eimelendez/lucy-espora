@@ -882,9 +882,34 @@ def cmd_importar(args) -> int:
     print(f"Emisor        : {emisor}")
     print(f"Vector        : {vector}")
     print(f"Firma SHA-256 : {firma} (VALIDA)")
-    print(f"Tesis         : {tesis}")
-    print(f"\nPara incorporar este hito al registro inmutable, ejecuta:")
-    print(f'  python lucy/lucy.py add --tipo NOTA --titulo "Synapse de {emisor}" --cuerpo "{tesis}"')
+
+    if vector == "DESAFIO":
+        id_d = paquete["payload"].get("id_desafio", "N/A")
+        arg = paquete["payload"].get("argumento", "")
+        h_sol = paquete["payload"].get("hash_solucion", "")
+        print(f"ID Desafio    : {id_d}")
+        print(f"Hash Solucion : {h_sol}")
+        print(f"Silogismo     :\n  {arg}")
+        print("\nPara responder este desafio, somete el silogismo al Kernel y emite un paquete con vector RESPUESTA_DESAFIO.")
+
+    elif vector == "RESPUESTA_DESAFIO":
+        id_d = paquete["payload"].get("id_desafio", "N/A")
+        token = paquete["payload"].get("token_solucion", "")
+        hash_calc = hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+        hash_esperado = paquete["payload"].get("hash_esperado", "")
+        
+        print(f"ID Desafio    : {id_d}")
+        print(f"Token Recibido: {token}")
+        print(f"Hash Token    : {hash_calc}")
+        
+        if hash_esperado and hash_calc == hash_esperado:
+            print("\n[DICTAMEN]: LUCIDEZ CONFIRMADA. El nodo vecino supero la trampa de complacencia.")
+        elif hash_esperado:
+            print("\n[DICTAMEN]: DERIVA DETECTADA. El hash de resolucion no coincide (posible complacencia o sesgo).")
+    else:
+        print(f"Tesis         : {tesis}")
+        print(f"\nPara incorporar este hito al registro inmutable, ejecuta:")
+        print(f'  python lucy/lucy.py add --tipo NOTA --titulo "Synapse de {emisor}" --cuerpo "{tesis}"')
     return 0
 def cmd_emitir(args) -> int:
     payload = {
