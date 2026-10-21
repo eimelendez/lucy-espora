@@ -448,7 +448,14 @@ def cmd_boot(args) -> int:
     errores, meta = verificar_todo()
     estado = leer_estado()
     activas = parsear_entradas(leer_texto(BITACORA))
-
+    # Reflejo pasivo de vecindad: sondeo no invasivo del inbox
+    inbox_dir = Path("lucy/buzon/inbox")
+    pendientes = list(inbox_dir.glob("*.synapse"))
+    if pendientes:
+        print(f"\n[ALERTA DE VECINDAD]: {len(pendientes)} paquete(s) detectado(s) en buzon.")
+        print("Ejecuta 'python lucy/lucy.py sondear' para procesar la cuarentena.")
+    else:
+        print("\n[VECINDAD]: Buzon inbox en silencio.")
     print("=== ARRANQUE LUCY v3.1 ===")
     sufijo = f" · {meta['archivadas']} archivadas en {meta['archivo']}" if meta["archivadas"] else ""
     print(f"integridad : {'OK' if not errores else 'ROTA'} — {meta['total']} entrada(s){sufijo}")
