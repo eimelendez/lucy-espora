@@ -1,0 +1,16 @@
+﻿{
+  "protocolo": "LUCY_SYNAPSE_V1",
+  "emisor": {
+    "nodo_id": "lucy-nodo-caracas-01",
+    "espora_hash": "4ef454a",
+    "ts": "2026-10-21T13:45:00Z"
+  },
+  "vector": "REFUTACION",
+  "payload": {
+    "objetivo": "HITO_L-008",
+    "tesis": "La sincronizacion en caliente debe ser desacoplada del loop principal",
+    "evidencia": "Rendimiento degradado un 30% en pruebas de carga concurrentes",
+    "hash_evidencia": "a8f3b92c10de"
+  },
+  "firma_sha256": "b4978d400235"
+}

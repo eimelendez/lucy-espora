@@ -834,6 +834,58 @@ def cmd_add(args) -> int:
 
 # --------------------------------------------------------------------------- #
 
+def procesar_synapse(path: Path) -> dict:
+    """Valida sintaxis, claves obligatorias y firma SHA-256 de un paquete .synapse."""
+    try:
+        contenido = path.read_text(encoding="utf-8-sig")
+    except Exception as exc:
+        raise ErrorBitacora(f"No se pudo leer el archivo: {exc}")
+
+    try:
+        data = json.loads(contenido)
+    except json.JSONDecodeError:
+        raise ErrorBitacora(f"Sintaxis invalida: '{path.name}' no es un JSON valido")
+
+    if data.get("protocolo") != "LUCY_SYNAPSE_V1":
+        raise ErrorBitacora(f"Protocolo no compatible: '{data.get('protocolo')}'")
+
+    campos_requeridos = ("emisor", "vector", "payload", "firma_sha256")
+    for campo in campos_requeridos:
+        if campo not in data:
+            raise ErrorBitacora(f"Paquete incompleto: falta la clave obligatoria '{campo}'")
+
+    # Calculo determinista de firma sobre el payload serializado
+    payload_str = json.dumps(data["payload"], sort_keys=True, ensure_ascii=False)
+    firma_calculada = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()[:12]
+
+    if firma_calculada != data["firma_sha256"]:
+        raise ErrorBitacora(
+            f"Firma invalida (esperada={data['firma_sha256']} calculada={firma_calculada})"
+        )
+
+    return data
+
+
+def cmd_importar(args) -> int:
+    path_archivo = Path(args.archivo)
+    if not path_archivo.is_file():
+        raise ErrorBitacora(f"El archivo no existe en la ruta: {args.archivo}")
+
+    paquete = procesar_synapse(path_archivo)
+
+    emisor = paquete["emisor"].get("nodo_id", "desconocido")
+    vector = paquete.get("vector", "DESCONOCIDO")
+    tesis = paquete["payload"].get("tesis", "Sin tesis declarada")
+    firma = paquete.get("firma_sha256")
+
+    print(f"=== CUARENTENA SUPERADA ===")
+    print(f"Emisor        : {emisor}")
+    print(f"Vector        : {vector}")
+    print(f"Firma SHA-256 : {firma} (VALIDA)")
+    print(f"Tesis         : {tesis}")
+    print(f"\nPara incorporar este hito al registro inmutable, ejecuta:")
+    print(f'  python lucy/lucy.py add --tipo NOTA --titulo "Synapse de {emisor}" --cuerpo "{tesis}"')
+    return 0
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="lucy.py", description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -875,7 +927,9 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--tags", default="")
     a.add_argument("--json", action="store_true")
     a.set_defaults(func=cmd_add)
-
+    imp = sub.add_parser("importar", help="audita y valida un archivo .synapse en cuarentena")
+    imp.add_argument("archivo", help="ruta al archivo .synapse")
+    imp.set_defaults(func=cmd_importar)
     args = p.parse_args(argv)
     try:
         return args.func(args)
