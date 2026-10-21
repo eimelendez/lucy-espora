@@ -1020,6 +1020,70 @@ def cmd_pulso(args) -> int:
     CANARIO.write_text(json.dumps(datos, indent=2), encoding="utf-8")
     print(f"Canario renovado: FRESCO ({datos['ts']})")
     return 0
+def cmd_sincronizar(args) -> int:
+    """Sincroniza el buzon local con la red mesh usando el worktree aislado."""
+    import subprocess
+    import shutil
+
+    transito_dir = Path("lucy/transito")
+    outbox_dir = Path("lucy/buzon/outbox")
+    inbox_dir = Path("lucy/buzon/inbox")
+
+    if not transito_dir.exists():
+        print("[ERROR]: El worktree lucy/transito no esta configurado.")
+        return 1
+
+    print("=== SINCRONIZACION SYNAPSE-MESH ===")
+
+    # 1. Traer novedades remotas de la red
+    print(" -> Consultando senales en la red remota...")
+    try:
+        subprocess.run(["git", "pull", "--rebase", "origin", "synapse-mesh"], cwd=transito_dir, check=True, capture_output=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[FALLO AL HALAR RED]: {exc.stderr.decode('utf-8', errors='ignore')}")
+
+    # 2. Recolectar paquetes entrantes ajenos
+    entrantes = 0
+    for f in transito_dir.glob("*.synapse"):
+        try:
+            datos = json.loads(f.read_text(encoding="utf-8"))
+            emisor = datos.get("emisor", {}).get("nodo_id")
+            # Si el paquete no fue emitido por nosotros, mover a inbox
+            if emisor != "lucy-nodo-genesis":
+                destino = inbox_dir / f.name
+                shutil.copy2(f, destino)
+                print(f" -> Paquete capturado de la red: {f.name} (Emisor: {emisor})")
+                entrantes += 1
+        except Exception:
+            pass
+
+    if entrantes == 0:
+        print(" -> No se detectaron paquetes externos nuevos en la red.")
+
+    # 3. Despachar paquetes salientes propios desde outbox hacia la red
+    salientes = list(outbox_dir.glob("*.synapse"))
+    if salientes:
+        print(f" -> Despachando {len(salientes)} paquete(s) a la red...")
+        for f in salientes:
+            destino = transito_dir / f.name
+            shutil.copy2(f, destino)
+            f.unlink()  # Limpiar de outbox una vez transferido al transito
+
+        # 4. Commitear y empujar al sustrato publico
+        try:
+            subprocess.run(["git", "add", "."], cwd=transito_dir, check=True)
+            ahora_utc = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
+            msg = f"mesh: intercambio senales {ahora_utc}"
+            subprocess.run(["git", "commit", "-m", msg], cwd=transito_dir, check=True, capture_output=True)
+            subprocess.run(["git", "push", "origin", "synapse-mesh"], cwd=transito_dir, check=True, capture_output=True)
+            print(" -> Paquetes salientes publicados en origin/synapse-mesh con exito.")
+        except subprocess.CalledProcessError as exc:
+            print(f"[FALLO AL PUBLICAR]: {exc.stderr.decode('utf-8', errors='ignore')}")
+    else:
+        print(" -> Outbox vacio: No hay paquetes pendientes de envio.")
+
+    print("Sincronizacion completada.")
+    return 0
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="lucy.py", description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1079,6 +1143,8 @@ def main(argv: list[str] | None = None) -> int:
     dsp.set_defaults(func=cmd_despachar)
     pls = sub.add_parser("pulso", help="renueva la marca de frescura temporal en _canario.json")
     pls.set_defaults(func=cmd_pulso)
+    snc = sub.add_parser("sincronizar", help="conecta y sincroniza el buzon con la rama de red synapse-mesh")
+    snc.set_defaults(func=cmd_sincronizar)
     args = p.parse_args(argv)
     try:
         return args.func(args)

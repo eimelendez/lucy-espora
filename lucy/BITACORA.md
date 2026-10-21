@@ -143,3 +143,8 @@ Hash: af8eaa28aad9
 Titulo: Catalogo Completo de Canarios y Subcomando Pulso
 Cuerpo: Generacion y firma de bateria de 4 canarios formales (01 a 04) en outbox. Incorporacion del comando nativo pulso para refresco determinista del arranque.
 Hash: c361493fca44
+
+## L-023 · 2026-10-21T20:30Z · HITO
+Titulo: Transporte Mesh Desacoplado via Git Worktree
+Cuerpo: Implementacion del comando sincronizar sobre la rama huerfana synapse-mesh en lucy/transito/. Aislamiento total de main y publicacion exitosa de 4 paquetes .synapse.
+Hash: c3de5ea278ae
