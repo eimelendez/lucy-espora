@@ -153,3 +153,8 @@ Hash: c3de5ea278ae
 Titulo: Auditoria Duplex y Especificacion Normativa Synapse V1
 Cuerpo: Validacion del ciclo bidireccional completo: captura foranea, cuarentena e importacion limpia. Redaccion de boveda/SYNAPSE_V1_ESPECIFICACION.md y correccion UTF-8-SIG en sincronizacion.
 Hash: cbba587ac9d4
+
+## L-025 · 2026-10-21T21:25Z · NOTA
+Titulo: Cierre de Frente de Procura
+Cuerpo: Cancelacion de la revision de demo de procura y del puente hacia MS Project por instruccion directa del piloto. Frente liberado a estado de reposo.
+Hash: 480b00781bfc
