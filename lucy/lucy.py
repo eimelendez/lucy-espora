@@ -1046,16 +1046,18 @@ def cmd_sincronizar(args) -> int:
     entrantes = 0
     for f in transito_dir.glob("*.synapse"):
         try:
-            datos = json.loads(f.read_text(encoding="utf-8"))
+            # utf-8-sig decodifica archivos con o sin BOM de forma transparente
+            contenido = f.read_text(encoding="utf-8-sig")
+            datos = json.loads(contenido)
             emisor = datos.get("emisor", {}).get("nodo_id")
-            # Si el paquete no fue emitido por nosotros, mover a inbox
+            # Si el paquete no fue emitido por nosotros, transferir a inbox
             if emisor != "lucy-nodo-genesis":
                 destino = inbox_dir / f.name
                 shutil.copy2(f, destino)
                 print(f" -> Paquete capturado de la red: {f.name} (Emisor: {emisor})")
                 entrantes += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f" [AVISO] Fallo al parsear {f.name}: {exc}")
 
     if entrantes == 0:
         print(" -> No se detectaron paquetes externos nuevos en la red.")

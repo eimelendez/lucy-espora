@@ -148,3 +148,8 @@ Hash: c361493fca44
 Titulo: Transporte Mesh Desacoplado via Git Worktree
 Cuerpo: Implementacion del comando sincronizar sobre la rama huerfana synapse-mesh en lucy/transito/. Aislamiento total de main y publicacion exitosa de 4 paquetes .synapse.
 Hash: c3de5ea278ae
+
+## L-024 · 2026-10-21T21:00Z · HITO
+Titulo: Auditoria Duplex y Especificacion Normativa Synapse V1
+Cuerpo: Validacion del ciclo bidireccional completo: captura foranea, cuarentena e importacion limpia. Redaccion de boveda/SYNAPSE_V1_ESPECIFICACION.md y correccion UTF-8-SIG en sincronizacion.
+Hash: cbba587ac9d4
