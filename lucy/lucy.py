@@ -1009,6 +1009,17 @@ def cmd_despachar(args) -> int:
             print(f" -> {f.name} [CORRUPTO]: {exc}")
 
     return 0
+def cmd_pulso(args) -> int:
+    """Actualiza la huella en _canario.json con la marca de tiempo UTC actual."""
+    ahora = datetime.now(timezone.utc)
+    datos = {
+        "epoch": ahora.timestamp(),
+        "ts": ahora.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "nodo_id": "lucy-nodo-genesis",
+    }
+    CANARIO.write_text(json.dumps(datos, indent=2), encoding="utf-8")
+    print(f"Canario renovado: FRESCO ({datos['ts']})")
+    return 0
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="lucy.py", description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1066,6 +1077,8 @@ def main(argv: list[str] | None = None) -> int:
     snd.set_defaults(func=cmd_sondear)
     dsp = sub.add_parser("despachar", help="audita y lista los paquetes salientes en outbox")
     dsp.set_defaults(func=cmd_despachar)
+    pls = sub.add_parser("pulso", help="renueva la marca de frescura temporal en _canario.json")
+    pls.set_defaults(func=cmd_pulso)
     args = p.parse_args(argv)
     try:
         return args.func(args)
