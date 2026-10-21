@@ -1,8 +1,0 @@
-# Overlay de prueba para validar el montaje del bridge de hooks sin tocar el
-# perfil real. Uso: dsh --profile desktop --patch lucy/_pruebas/hooks.patch.yml --dump-config
-- insert:
-    - id: hooks-claude-code
-      name: '@deepseek-ai/dsh-hooks-claude-code'
-      config:
-        configPath: C:/Users/melen.LAPTOP-N6INJQJC/OneDrive/Documentos/deepseek-harness/default-workspace/lucy/hooks/hooks.json
-        defaultTimeoutMs: 20000

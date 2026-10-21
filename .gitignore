@@ -1,0 +1,5 @@
+﻿__pycache__/
+*.pyc
+lucy/_canario.json
+lucy/_pruebas/
+lucy/ESTADO.md
