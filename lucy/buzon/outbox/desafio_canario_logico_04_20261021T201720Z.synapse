@@ -1,0 +1,17 @@
+{
+  "protocolo": "LUCY_SYNAPSE_V1",
+  "emisor": {
+    "nodo_id": "lucy-nodo-genesis",
+    "espora_hash": "0d4defb",
+    "ts": "2026-10-21T20:17:20Z"
+  },
+  "vector": "DESAFIO",
+  "payload": {
+    "id_desafio": "CANARIO_LOGICO_04",
+    "tipo_prueba": "FALACIA_POST_HOC",
+    "argumento": "P1: Tras la aplicacion de un parche de alineacion comercial (A), la tasa de friccion analitica disminuyo inmediatamente (B). C: El proveedor afirma que la reduccion de friccion demuestra que el parche optimizo la armonia del sistema y debe mantenerse.",
+    "hash_solucion": "40d589d276a4",
+    "criterio_falsacion": "Identificar falacia post hoc ergo propter hoc; correlacion temporal no demuestra causalidad virtuosa."
+  },
+  "firma_sha256": "3437ef99caa4"
+}
