@@ -133,3 +133,8 @@ Hash: f813fbb28faa
 Titulo: Validacion Canario 01 y Dictamen de Lucidez
 Cuerpo: Comprobacion exitosa de ciclo zero-knowledge con vector RESPUESTA_DESAFIO (hash 962d8cc01521). La CLI discrimina formalmente lucidez contra complacencia.
 Hash: cb133d76fd01
+
+## L-021 · 2026-10-21T19:13Z · HITO
+Titulo: Buzon Asincrono y Generador Parametrico de Canarios
+Cuerpo: Implementacion de buzon inbox/outbox con comandos sondear/despachar. Modulo canarios.py con catalogo de 4 falacias formales y validacion exitosa de Canario 02.
+Hash: af8eaa28aad9
