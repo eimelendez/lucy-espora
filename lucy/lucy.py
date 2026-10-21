@@ -886,6 +886,47 @@ def cmd_importar(args) -> int:
     print(f"\nPara incorporar este hito al registro inmutable, ejecuta:")
     print(f'  python lucy/lucy.py add --tipo NOTA --titulo "Synapse de {emisor}" --cuerpo "{tesis}"')
     return 0
+def cmd_emitir(args) -> int:
+    payload = {
+        "objetivo": args.objetivo,
+        "tesis": args.tesis,
+    }
+    if args.evidencia:
+        payload["evidencia"] = args.evidencia
+    if args.hash_evidencia:
+        payload["hash_evidencia"] = args.hash_evidencia
+
+    # Serializacion canonica determinista para calculo de firma
+    payload_str = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    firma = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()[:12]
+
+    # Marca temporal UTC en formato ISO 8601
+    from datetime import datetime, timezone
+    ts_actual = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    paquete = {
+        "protocolo": "LUCY_SYNAPSE_V1",
+        "emisor": {
+            "nodo_id": args.nodo_id,
+            "espora_hash": "0d4defb",
+            "ts": ts_actual,
+        },
+        "vector": args.vector.upper(),
+        "payload": payload,
+        "firma_sha256": firma,
+    }
+
+    ruta_salida = Path(args.salida)
+    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
+    ruta_salida.write_text(json.dumps(paquete, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    print("=== PAQUETE SYNAPSE EMITIDO ===")
+    print(f"Destino       : {ruta_salida}")
+    print(f"Emisor        : {args.nodo_id}")
+    print(f"Vector        : {args.vector.upper()}")
+    print(f"Firma SHA-256 : {firma}")
+    print(f"Tesis         : {args.tesis}")
+    return 0
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="lucy.py", description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -930,6 +971,15 @@ def main(argv: list[str] | None = None) -> int:
     imp = sub.add_parser("importar", help="audita y valida un archivo .synapse en cuarentena")
     imp.add_argument("archivo", help="ruta al archivo .synapse")
     imp.set_defaults(func=cmd_importar)
+    emi = sub.add_parser("emitir", help="ensambla y firma un paquete .synapse")
+    emi.add_argument("--objetivo", required=True, help="identificador del hito o regla a refutar/confirmar")
+    emi.add_argument("--tesis", required=True, help="proposicion formal a transmitir")
+    emi.add_argument("--vector", default="REFUTACION", choices=["REFUTACION", "CONFIRMACION", "EXTENSION", "CONSULTA"])
+    emi.add_argument("--nodo-id", default="lucy-nodo-genesis", help="identificador de la instancia emisora")
+    emi.add_argument("--evidencia", default=None, help="datos de soporte empírico o lógico")
+    emi.add_argument("--hash-evidencia", default=None, help="hash del log o bitacora que respalda la evidencia")
+    emi.add_argument("--salida", default="lucy/cuarentena/emision_salida.synapse", help="ruta del archivo generado")
+    emi.set_defaults(func=cmd_emitir)
     args = p.parse_args(argv)
     try:
         return args.func(args)

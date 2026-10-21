@@ -1,0 +1,14 @@
+{
+  "protocolo": "LUCY_SYNAPSE_V1",
+  "emisor": {
+    "nodo_id": "lucy-nodo-genesis",
+    "espora_hash": "0d4defb",
+    "ts": "2026-10-21T16:23:55Z"
+  },
+  "vector": "EXTENSION",
+  "payload": {
+    "objetivo": "HITO_L-003",
+    "tesis": "Prueba de emision simetrica entre nodos"
+  },
+  "firma_sha256": "093421f84810"
+}
