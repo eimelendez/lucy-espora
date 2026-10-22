@@ -991,15 +991,27 @@ def cmd_despachar(args) -> int:
 
     return 0
 def cmd_pulso(args) -> int:
-    """Actualiza la huella en _canario.json con la marca de tiempo UTC actual."""
+    """Actualiza la huella en _canario.json y sincroniza ESTADO.md con la marca UTC actual."""
     ahora = datetime.now(timezone.utc)
+    ts_iso = ahora.strftime("%Y-%m-%dT%H:%M:%SZ")
     datos = {
         "epoch": ahora.timestamp(),
-        "ts": ahora.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "ts": ts_iso,
         "nodo_id": "lucy-nodo-genesis",
     }
     CANARIO.write_text(json.dumps(datos, indent=2), encoding="utf-8")
-    print(f"Canario renovado: FRESCO ({datos['ts']})")
+
+    if ESTADO.exists():
+        lineas = ESTADO.read_text(encoding="utf-8-sig", errors="ignore").splitlines()
+        nuevas = []
+        for l in lineas:
+            if l.startswith("actualizado:"):
+                nuevas.append(f"actualizado: {ts_iso}")
+            else:
+                nuevas.append(l)
+        escribir_atomico(ESTADO, "\n".join(nuevas) + "\n")
+
+    print(f"Canario renovado: FRESCO ({ts_iso})")
     return 0
 def cmd_sincronizar(args) -> int:
     """Sincroniza el buzon local con la red mesh usando el worktree aislado."""
@@ -1262,19 +1274,15 @@ def cmd_doctor(args) -> int:
     # 5. Canario Temporal (Frescura del Pulso)
     print("\n[5/5] Canario Temporal:")
     try:
-        ts_estado = None
-        if ESTADO.exists():
-            for line in ESTADO.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
-                if line.startswith("actualizado:"):
-                    ts_estado = line.split(":", 1)[1].strip()
-                    break
-        if ts_estado:
-            dt = datetime.fromisoformat(ts_estado.replace("Z", "+00:00"))
-            horas = (datetime.now(timezone.utc) - dt).total_seconds() / 3600.0
+        canario = leer_canario()
+        horas = edad_horas(canario) if canario else None
+        ts_canario = canario.get("ts") if canario else None
+
+        if horas is not None and ts_canario:
             if horas < 4.0:
-                print(f"  [OK]    Pulso fresco ({horas:.2f} h desde {ts_estado})")
+                print(f"  [OK]    Pulso fresco ({horas:.2f} h desde {ts_canario})")
             elif horas < 24.0:
-                print(f"  [TIBIO] Pulso tibio ({horas:.2f} h desde {ts_estado})")
+                print(f"  [TIBIO] Pulso tibio ({horas:.2f} h desde {ts_canario})")
                 if fix:
                     cmd_pulso(args)
                     print("  [FIXED] Pulso temporal renovado")
@@ -1282,7 +1290,7 @@ def cmd_doctor(args) -> int:
                 else:
                     avisos += 1
             else:
-                print(f"  [FRIO]  Pulso frio ({horas:.2f} h desde {ts_estado})")
+                print(f"  [FRIO]  Pulso frio ({horas:.2f} h desde {ts_canario})")
                 if fix:
                     cmd_pulso(args)
                     print("  [FIXED] Pulso temporal renovado")
@@ -1290,8 +1298,13 @@ def cmd_doctor(args) -> int:
                 else:
                     avisos += 1
         else:
-            print("  [AVISO] No se pudo calcular canario: marca de tiempo ausente en ESTADO")
-            avisos += 1
+            print("  [AVISO] No se pudo calcular canario: _canario.json ausente o invalido")
+            if fix:
+                cmd_pulso(args)
+                print("  [FIXED] Canario temporal inicializado")
+                reparaciones += 1
+            else:
+                avisos += 1
     except Exception as e:
         print(f"  [AVISO] Error al evaluar canario temporal: {e}")
         avisos += 1
