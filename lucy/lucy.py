@@ -806,14 +806,16 @@ def cmd_add(args) -> int:
 
     base = texto if texto.endswith("\n") else texto + "\n"
     escribir_atomico(BITACORA, base + "\n".join(lineas) + "\n")
-    
-    # Disparar auto-sincronizacion desatendida
-    _auto_respaldo_git(ident, titulo_n)
 
-    if args.json:
+    # 1. Confirmacion criptografica local inmutable (prioridad cero)
+    if getattr(args, "json", False):
         print(json.dumps({"id": ident, "hash": h, "tipo": tipo, "ts": ts}, ensure_ascii=False))
     else:
-        print(f"{ident} anexada · {h} · cadena {meta['total'] + 1} entrada(s)")
+        print(f"\n[SELLO SHA-256] {ident} anexada · {h} · cadena {meta['total'] + 1} entrada(s)")
+
+    # 2. Respaldo remoto desatendido (propagacion secundaria)
+    _auto_respaldo_git(ident, titulo_n)
+
     return 0
 
 
@@ -1504,26 +1506,45 @@ Uso: semilla [--clip] para copiar directo al portapapeles."""
             print(f"  * {a.name} ({a.stat().st_size} bytes)")
 
     def do_add(self, arg):
-        """Asistente guiado para agregar una entrada a la bitacora sin escapar comillas."""
+        """Asistente guiado e interactivo para agregar entradas a la bitacora."""
         print("--- NUEVA ENTRADA EN BITACORA ---")
         tipos_validos = ["HITO", "DECISION", "CORRECCION", "NOTA"]
-        tipo = input(f"Tipo [{'/'.join(tipos_validos)}] (def: NOTA): ").strip().upper()
-        if not tipo:
-            tipo = "NOTA"
-        if tipo not in tipos_validos:
-            print(f"Tipo invalido. Debe ser uno de: {tipos_validos}")
-            return
+        
+        # 1. Seleccion de Tipo con reintento y opcion de cancelacion
+        while True:
+            prompt_tipo = f"Tipo [{'/'.join(tipos_validos)}] (def: NOTA, 'c' para cancelar): "
+            tipo = input(prompt_tipo).strip().upper()
+            if not tipo:
+                tipo = "NOTA"
+                break
+            if tipo in ["C", "CANCELAR"]:
+                print("Operacion cancelada por el piloto.")
+                return
+            if tipo in tipos_validos:
+                break
+            print(f"  [AVISO] '{tipo}' no es valido. Debe ser uno de: {', '.join(tipos_validos)}")
 
-        titulo = input("Titulo: ").strip()
-        if not titulo:
-            print("El titulo no puede estar vacio.")
-            return
+        # 2. Captura de Titulo obligatorio
+        while True:
+            titulo = input("Titulo ('c' para cancelar): ").strip()
+            if titulo.upper() in ["C", "CANCELAR"]:
+                print("Operacion cancelada por el piloto.")
+                return
+            if titulo:
+                break
+            print("  [AVISO] El titulo no puede estar vacio.")
 
-        cuerpo = input("Cuerpo/Descripcion: ").strip()
-        if not cuerpo:
-            print("El cuerpo no puede estar vacio.")
-            return
+        # 3. Captura de Cuerpo obligatorio
+        while True:
+            cuerpo = input("Cuerpo/Descripcion ('c' para cancelar): ").strip()
+            if cuerpo.upper() in ["C", "CANCELAR"]:
+                print("Operacion cancelada por el piloto.")
+                return
+            if cuerpo:
+                break
+            print("  [AVISO] El cuerpo no puede estar vacio.")
 
+        # 4. Tags opcionales
         tags_raw = input("Tags (separados por coma, opcional): ").strip()
 
         ns = argparse.Namespace(
@@ -1540,7 +1561,24 @@ Uso: semilla [--clip] para copiar directo al portapapeles."""
         os.system("cls" if os.name == "nt" else "clear")
 
     def do_salir(self, arg):
-        """Cierra la consola interactiva."""
+        """Cierra la consola interactiva verificando cambios pendientes en git."""
+        raiz = HERE.parent
+        try:
+            res = subprocess.run(
+                ["git", "-C", str(raiz), "status", "--porcelain"],
+                capture_output=True,
+                text=True
+            )
+            if res.stdout.strip():
+                print("\n[AVISO] Existen modificaciones locales sin subir a GitHub:")
+                for l in res.stdout.strip().splitlines()[:5]:
+                    print(f"  {l}")
+                resp = input("¿Deseas respaldar los cambios antes de salir? [S/n]: ").strip().lower()
+                if resp in ["", "s", "si", "y", "yes"]:
+                    self.do_respaldar("Sincronizacion preventiva al cerrar REPL")
+        except Exception:
+            pass
+
         print("Cerrando sesion interactiva. Espora en reposo.")
         return True
 
