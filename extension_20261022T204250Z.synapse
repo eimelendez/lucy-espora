@@ -1,0 +1,14 @@
+{
+  "protocolo": "LUCY_SYNAPSE_V1",
+  "emisor": {
+    "nodo_id": "lucy-nodo-genesis",
+    "espora_hash": "0d4defb",
+    "ts": "2026-10-22T20:42:50Z"
+  },
+  "vector": "EXTENSION",
+  "payload": {
+    "objetivo": "red-mesh",
+    "tesis": "Validacion de transporte asincrono sobre rama aislada synapse-mesh"
+  },
+  "firma_sha256": "95928def3501"
+}
