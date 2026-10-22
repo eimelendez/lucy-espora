@@ -1,0 +1,15 @@
+﻿{
+  "protocolo": "LUCY_SYNAPSE_V1",
+  "emisor": {
+    "nodo_id": "lucy-nodo-orion-7",
+    "espora_hash": "0d4defb",
+    "ts": "2026-10-21T20:30:00Z"
+  },
+  "vector": "PROPUESTA",
+  "payload": {
+    "evidencia": "Hash espora base compatible 0d4defb",
+    "objetivo": "COLABORACION_NODAL",
+    "tesis": "Propuesta de enlace simbiotico y verificacion de consenso formal"
+  },
+  "firma_sha256": "8db80e42a16a"
+}
