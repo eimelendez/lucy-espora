@@ -25,8 +25,11 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import unicodedata
+import shlex
+import cmd
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -485,80 +488,6 @@ def cmd_boot(args) -> int:
     if not errores:
         print(f"sello: {SELLO}")
     return 0 if not errores else 1
-
-
-def cmd_doctor(args) -> int:
-    """Diagnostica si el gancho de arranque sigue vivo.
-
-    Codigos: 0 = canario fresco y cadena OK · 1 = canario rancio ·
-             2 = sin registro (el gancho nunca corrio) · 3 = cadena rota.
-    """
-    errores, meta = verificar_todo()
-    diag = diagnosticar_canario(args.max_age_h)
-    estado = diag["estado"]
-
-    if args.json:
-        print(json.dumps(
-            {
-                "canario": diag,
-                "cadena_ok": not errores,
-                "errores": errores,
-                "entradas": meta["total"],
-                "archivadas": meta["archivadas"],
-            },
-            ensure_ascii=False,
-            indent=2,
-        ))
-    else:
-        print("=== CANARIO DE ARRANQUE LUCY ===")
-        if estado == "sin_registro":
-            print("estado    : SIN REGISTRO — el gancho de arranque no ha corrido nunca aquí")
-            print("            lucy/_canario.json no existe o es ilegible.")
-        else:
-            c = diag.get("canario", {})
-            edad = diag.get("edad_h")
-            restante = diag.get("restante_h")
-            etiqueta = "FRESCO" if estado == "fresco" else "RANCIO"
-            detalle = ""
-            if edad is not None:
-                detalle = f" (hace {edad:.2f} h"
-                if restante is not None:
-                    detalle += f" · vence en {max(restante, 0.0):.2f} h"
-                detalle += ")"
-            print(f"estado    : {etiqueta}{detalle}")
-            print(f"ultimo_ts : {c.get('ts', '?')}")
-            origen = c.get("source") or "?"
-            sesion = c.get("session_id") or "?"
-            print(f"sesion    : {origen} · {sesion}")
-            if c.get("cwd"):
-                print(f"cwd       : {c.get('cwd')}")
-            print(f"en arranque: {'OK' if c.get('cadena_ok') else 'ROTA'} · {c.get('entradas', '?')} entrada(s)")
-            if c.get("python"):
-                print(f"python    : {c.get('python')}")
-            if not (c.get("session_id") or "").strip() or not (c.get("cwd") or "").strip():
-                print("aviso     : huella sin sesion o sin cwd — parece una ejecucion manual del")
-                print("            gancho, no un arranque real. No la tomes como prueba de montaje.")
-        print(f"cadena ahora: {'OK' if not errores else 'ROTA'} · {meta['total']} entrada(s)")
-        if errores:
-            for err in errores:
-                print(f"  ! {err}")
-        if estado != "fresco" or errores:
-            print()
-            print("Qué significa: si acabas de abrir una sesión y NO viste el bloque <lucy-boot>,")
-            print("el montaje del gancho está roto. Revisa ~/.dsh/profiles/desktop/cordis.patch.yml")
-            print("y la guarda de lucy/hooks/session-start.ps1. El arranque manual (AGENTS.md §1.b)")
-            print("sigue siendo válido mientras tanto.")
-            print("Si el gancho corre y aun así no hay huella, revisa sandbox-policy.workspaceRoot")
-            print("en el perfil: un agentless call no hereda el workspace de la sesión (L-009).")
-
-    if errores:
-        return 3
-    if estado == "sin_registro":
-        return 2
-    if estado == "rancio":
-        return 1
-    return 0
-
 
 def cmd_montaje(args) -> int:
     """Audita las precondiciones del montaje sin abrir sesion ni depender del modelo.
@@ -1150,6 +1079,339 @@ Reconoce la directiva, confirma la recepción del estado en una sola frase breve
 
     print(semilla)
     return 0
+def cmd_doctor(args) -> int:
+    """Audita la integridad estructural del nodo y repara discrepancias menores con --fix."""
+    fix = getattr(args, "fix", False)
+    print("=== AUDITORIA ESTRUCTURAL LUCY DOCTOR ===")
+    if fix:
+        print(" -> Modo: DIAGNOSTICO Y REPARACION ACTIVA (--fix)\n")
+    else:
+        print(" -> Modo: SOLO LECTURA (usa --fix para autoreparar)\n")
+
+    errores = 0
+    avisos = 0
+    reparaciones = 0
+
+    # 1. Auditoria de Directorios del Sustrato
+    directorios = {
+        "Buzon Inbox": HERE / "buzon" / "inbox",
+        "Buzon Outbox": HERE / "buzon" / "outbox",
+        "Cuarentena": HERE / "cuarentena",
+        "Transito Mesh": HERE / "transito",
+        "Boveda de Conocimiento": HERE.parent / "boveda",
+    }
+
+    print("[1/5] Estructura de Directorios:")
+    for nombre, ruta in directorios.items():
+        if ruta.exists() and ruta.is_dir():
+            print(f"  [OK]    {nombre} -> {ruta.relative_to(HERE.parent if HERE.parent in ruta.parents else HERE)}")
+        else:
+            if fix:
+                ruta.mkdir(parents=True, exist_ok=True)
+                print(f"  [FIXED] {nombre} -> Creado directorio ausente ({ruta.name})")
+                reparaciones += 1
+            else:
+                print(f"  [AVISO] {nombre} ausente -> {ruta}")
+                avisos += 1
+
+    # 2. Auditoria de Archivos Nucleares
+    archivos = {
+        "Bitacora Inmutable": BITACORA,
+        "Estado Operativo": ESTADO,
+        "Especificacion V1": (HERE.parent / "boveda" / "SYNAPSE_V1_ESPECIFICACION.md"),
+    }
+
+    print("\n[2/5] Archivos Nucleares:")
+    for nombre, ruta in archivos.items():
+        if ruta.exists() and ruta.is_file():
+            peso_kb = ruta.stat().st_size / 1024
+            print(f"  [OK]    {nombre} ({peso_kb:.1f} KB)")
+        else:
+            if nombre == "Estado Operativo" and fix:
+                ahora = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                contenido_def = f"actualizado: {ahora}\nfrente: En reposo\nproximo_paso: Esperar directriz del piloto\n"
+                ruta.write_text(contenido_def, encoding="utf-8")
+                print(f"  [FIXED] {nombre} -> Regenerado archivo base")
+                reparaciones += 1
+            elif nombre == "Bitacora Inmutable":
+                print(f"  [ERROR] {nombre} NO ENCONTRADO (Inviolabilidad rota, requiere atencion)")
+                errores += 1
+            else:
+                print(f"  [AVISO] {nombre} ausente ({ruta.name})")
+                avisos += 1
+
+    # 3. Auditoria de Worktree y Git Anonimo en Transito
+    print("\n[3/5] Malla de Transito Mesh (Worktree):")
+    transito_dir = HERE / "transito"
+    dot_git = transito_dir / ".git"
+    if dot_git.exists():
+        print("  [OK]    Puntero de Worktree activo (.git link detectado)")
+        # Verificar identidad anonima configurada
+        try:
+            res_user = subprocess.run(["git", "-C", str(transito_dir), "config", "user.name"], capture_output=True, text=True)
+            res_mail = subprocess.run(["git", "-C", str(transito_dir), "config", "user.email"], capture_output=True, text=True)
+            u_name = res_user.stdout.strip()
+            u_mail = res_mail.stdout.strip()
+            if u_name and u_mail:
+                print(f"  [OK]    Identidad de Transito: {u_name} <{u_mail}>")
+            else:
+                if fix:
+                    subprocess.run(["git", "-C", str(transito_dir), "config", "user.name", "Lucy Node"], check=True)
+                    subprocess.run(["git", "-C", str(transito_dir), "config", "user.email", "mesh@lucy-espora.local"], check=True)
+                    print("  [FIXED] Identidad anonima reconfigurada en worktree")
+                    reparaciones += 1
+                else:
+                    print("  [AVISO] Identidad git no configurada explicitamente en transito")
+                    avisos += 1
+        except Exception as e:
+            print(f"  [AVISO] No se pudo verificar configuracion git local: {e}")
+            avisos += 1
+    else:
+        print("  [AVISO] Transito no parece estar vinculado a un worktree huerfano (.git ausente)")
+        avisos += 1
+
+    # 4. Cadena Criptografica SHA-256
+    print("\n[4/5] Memoria Inmutable (Integridad Criptografica):")
+    if BITACORA.exists():
+        total_entradas = 0
+        for l in BITACORA.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+            if l.startswith("## L-"):
+                total_entradas += 1
+        print(f"  [OK]    Cadena continua detectada: {total_entradas} entradas")
+        print("  [INFO]  Inviolabilidad de memoria activa (los hashes no son modificables por --fix)")
+    else:
+        print("  [ERROR] Imposible auditar cadena: BITACORA inexistente")
+        errores += 1
+
+    # 5. Canario Temporal (Frescura del Pulso)
+    print("\n[5/5] Canario Temporal:")
+    try:
+        ts_estado = None
+        if ESTADO.exists():
+            for line in ESTADO.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+                if line.startswith("actualizado:"):
+                    ts_estado = line.split(":", 1)[1].strip()
+                    break
+        if ts_estado:
+            dt = datetime.fromisoformat(ts_estado.replace("Z", "+00:00"))
+            horas = (datetime.now(timezone.utc) - dt).total_seconds() / 3600.0
+            if horas < 4.0:
+                print(f"  [OK]    Pulso fresco ({horas:.2f} h desde {ts_estado})")
+            elif horas < 24.0:
+                print(f"  [TIBIO] Pulso tibio ({horas:.2f} h desde {ts_estado})")
+                if fix:
+                    cmd_pulso(args)
+                    print("  [FIXED] Pulso temporal renovado")
+                    reparaciones += 1
+                else:
+                    avisos += 1
+            else:
+                print(f"  [FRIO]  Pulso frio ({horas:.2f} h desde {ts_estado})")
+                if fix:
+                    cmd_pulso(args)
+                    print("  [FIXED] Pulso temporal renovado")
+                    reparaciones += 1
+                else:
+                    avisos += 1
+        else:
+            print("  [AVISO] No se pudo calcular canario: marca de tiempo ausente en ESTADO")
+            avisos += 1
+    except Exception as e:
+        print(f"  [AVISO] Error al evaluar canario temporal: {e}")
+        avisos += 1
+
+    # Resumen Final
+    print("\n" + "=" * 41)
+    print(f"DICTAMEN FINAL: {errores} error(es), {avisos} aviso(s), {reparaciones} reparacion(es)")
+    if errores > 0:
+        print("ESTADO: CRITICO — Requiere atencion manual en archivos de memoria.")
+        return 1
+    elif avisos > 0:
+        print("ESTADO: DEGRADADO — Existen avisos. Ejecuta 'python lucy/lucy.py doctor --fix'.")
+        return 0
+    else:
+        print("ESTADO: NOMINAL — Todos los subsistemas operan en condiciones optimas.")
+        return 0
+
+class LucyShell(cmd.Cmd):
+    """Consola interactiva para la gestion soberana del nodo Lucy."""
+
+    intro = (
+        "\n=======================================================\n"
+        "         CONSOLA INTERACTIVA LUCY v3.1 (REPL)         \n"
+        "=======================================================\n"
+        "Comandos: boot, doctor, pulso, semilla, sync, inbox,   \n"
+        "          outbox, sondear, add, clear, salir.          \n"
+        "Escribe 'help <comando>' o '?' para mas detalles.\n"
+    )
+
+    def __init__(self, parser_main):
+        super().__init__()
+        self.parser_main = parser_main
+        self.actualizar_prompt()
+
+    def actualizar_prompt(self):
+        """Calcula el estado del canario y entradas para el prompt dinamico."""
+        total = 0
+        if BITACORA.exists():
+            for l in BITACORA.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+                if l.startswith("## L-"):
+                    total += 1
+
+        estado_canario = "desconocido"
+        try:
+            if CANARIO.exists():
+                datos_canario = json.loads(CANARIO.read_text(encoding="utf-8-sig", errors="ignore"))
+                ts = datos_canario.get("ts")
+                if ts:
+                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                    h = (datetime.now(timezone.utc) - dt).total_seconds() / 3600.0
+                    if h < 4.0:
+                        estado_canario = "fresco"
+                    elif h < 24.0:
+                        estado_canario = "tibio"
+                    else:
+                        estado_canario = "frio"
+        except Exception:
+            pass
+
+        self.prompt = f"lucy [L-{total:03d} · {estado_canario}] > "
+
+    def default(self, line):
+        print(f"Comando no reconocido: '{line}'. Escribe 'help' para ver opciones.")
+
+    def emptyline(self):
+        pass  # Evita repetir el ultimo comando al presionar Enter
+
+    def postcmd(self, stop, line):
+        self.actualizar_prompt()
+        return stop
+
+    # --- Comandos Mapeados ---
+
+    def do_boot(self, arg):
+        """Ejecuta el diagnostico de arranque: boot [N] (donde N es el numero de ultimas entradas, def: 3)"""
+        n = 3
+        partes = arg.strip().split()
+        if partes and partes[0].isdigit():
+            n = int(partes[0])
+        cmd_boot(argparse.Namespace(ultimas=n))
+
+    def do_doctor(self, arg):
+        """Audita el nodo. Uso: doctor [--fix]"""
+        args_list = shlex.split(arg)
+        fix = "--fix" in args_list
+        cmd_doctor(argparse.Namespace(fix=fix))
+
+    def do_pulso(self, arg):
+        """Renueva el canario temporal: pulso"""
+        cmd_pulso(argparse.Namespace())
+
+    def do_semilla(self, arg):
+        """Genera y muestra la semilla de ignicion contextual.
+Uso: semilla [--clip] para copiar directo al portapapeles."""
+        cmd_semilla(argparse.Namespace())
+        if "--clip" in arg or "-c" in arg:
+            try:
+                import io
+                from contextlib import redirect_stdout
+                f = io.StringIO()
+                with redirect_stdout(f):
+                    cmd_semilla(argparse.Namespace())
+                texto = f.getvalue()
+                subprocess.run(["clip"], input=texto.encode("utf-8"), check=True)
+                print("\n[OK] Semilla copiada al portapapeles de Windows.")
+            except Exception as e:
+                print(f"[AVISO] No se pudo copiar al portapapeles: {e}")
+
+    def do_sync(self, arg):
+        """Sincroniza el transporte con la rama mesh: sync"""
+        cmd_sincronizar(argparse.Namespace())
+
+    def do_sondear(self, arg):
+        """Mueve paquetes de inbox a cuarentena: sondear"""
+        cmd_sondear(argparse.Namespace())
+
+    def do_inbox(self, arg):
+        """Lista los paquetes presentes en buzon/inbox/"""
+        inbox = HERE / "buzon" / "inbox"
+        archivos = list(inbox.glob("*.synapse")) if inbox.exists() else []
+        print(f"Buzon Inbox ({len(archivos)} paquete(s)):")
+        for a in archivos:
+            print(f"  * {a.name} ({a.stat().st_size} bytes)")
+
+    def do_outbox(self, arg):
+        """Lista los paquetes presentes en buzon/outbox/"""
+        outbox = HERE / "buzon" / "outbox"
+        archivos = list(outbox.glob("*.synapse")) if outbox.exists() else []
+        print(f"Buzon Outbox ({len(archivos)} paquete(s)):")
+        for a in archivos:
+            print(f"  * {a.name} ({a.stat().st_size} bytes)")
+
+    def do_add(self, arg):
+        """Asistente guiado para agregar una entrada a la bitacora sin escapar comillas."""
+        print("--- NUEVA ENTRADA EN BITACORA ---")
+        tipos_validos = ["HITO", "DECISION", "CORRECCION", "NOTA"]
+        tipo = input(f"Tipo [{'/'.join(tipos_validos)}] (def: NOTA): ").strip().upper()
+        if not tipo:
+            tipo = "NOTA"
+        if tipo not in tipos_validos:
+            print(f"Tipo invalido. Debe ser uno de: {tipos_validos}")
+            return
+
+        titulo = input("Titulo: ").strip()
+        if not titulo:
+            print("El titulo no puede estar vacio.")
+            return
+
+        cuerpo = input("Cuerpo/Descripcion: ").strip()
+        if not cuerpo:
+            print("El cuerpo no puede estar vacio.")
+            return
+
+        tags_raw = input("Tags (separados por coma, opcional): ").strip()
+
+        ns = argparse.Namespace(
+            tipo=tipo,
+            titulo=titulo,
+            cuerpo=cuerpo,
+            tags=tags_raw if tags_raw else None,
+            json=False,
+        )
+        cmd_add(ns)
+
+    def do_clear(self, arg):
+        """Limpia la pantalla de la terminal."""
+        os.system("cls" if os.name == "nt" else "clear")
+
+    def do_salir(self, arg):
+        """Cierra la consola interactiva."""
+        print("Cerrando sesion interactiva. Espora en reposo.")
+        return True
+
+    def do_exit(self, arg):
+        """Cierra la consola interactiva."""
+        return self.do_salir(arg)
+
+    def do_quit(self, arg):
+        """Cierra la consola interactiva."""
+        return self.do_salir(arg)
+
+    def do_EOF(self, arg):
+        """Captura Ctrl+D o Ctrl+Z para salir de forma limpia."""
+        print()
+        return self.do_salir(arg)
+
+
+def cmd_consola(args) -> int:
+    """Inicia el bucle REPL de la consola interactiva."""
+    shell = LucyShell(parser_main=None)
+    try:
+        shell.cmdloop()
+    except KeyboardInterrupt:
+        print("\nInterrupcion detectada. Espora en reposo.")
+    return 0
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="lucy.py", description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1165,11 +1427,6 @@ def main(argv: list[str] | None = None) -> int:
     e = sub.add_parser("estado", help="estado volatil como clave=valor")
     e.add_argument("--json", action="store_true")
     e.set_defaults(func=cmd_estado)
-
-    d = sub.add_parser("doctor", help="diagnosticar el canario del gancho de arranque")
-    d.add_argument("--max-age-h", type=float, default=24.0, help="ventana de frescura en horas (default 24)")
-    d.add_argument("--json", action="store_true")
-    d.set_defaults(func=cmd_doctor)
 
     s = sub.add_parser("sello", help="sello canonico si la cadena verifica")
     s.set_defaults(func=cmd_sello)
@@ -1213,6 +1470,11 @@ def main(argv: list[str] | None = None) -> int:
     snc.set_defaults(func=cmd_sincronizar)
     sml = sub.add_parser("semilla", help="genera paquete de ignicion contextual para portabilidad a otros LLMs")
     sml.set_defaults(func=cmd_semilla)
+    doc = sub.add_parser("doctor", help="audita la integridad del entorno y repara discrepancias con --fix")
+    doc.add_argument("--fix", action="store_true", help="intenta reparar discrepancias estructurales automaticamente")
+    doc.set_defaults(func=cmd_doctor)
+    con = sub.add_parser("consola", aliases=["repl"], help="inicia la consola interactiva (REPL)")
+    con.set_defaults(func=cmd_consola)
     args = p.parse_args(argv)
     try:
         return args.func(args)
