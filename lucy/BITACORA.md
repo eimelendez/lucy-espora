@@ -220,3 +220,9 @@ Titulo: Parametrizacion Modular de Semillas y Perfil PM
 Cuerpo: Correccion de lectura canonica en cmd_semilla (leer_texto/parsear_entradas) y despliegue de perfiles especializados: tecnico, epistemico y laboral (Project Management EPC / IEC 61511).
 Tags: semilla, perfiles, pm, kernel, fix
 Hash: 62d130e92879
+
+## L-037 · 2026-10-22T20:46Z · HITO
+Titulo: Operatividad Plena de Synapse Duplex y Sincronizacion de Canario
+Cuerpo: Resolucion de desacoplamiento de canario en doctor/pulso (sincronizacion de _canario.json y ESTADO.md a estado NOMINAL). Validacion integral de transporte asincrono inter-nodo sobre rama aislada synapse-mesh mediante Git Worktree lucy/transito, logrando emision, despacho y push remoto sin alterar el arbol principal main.
+Tags: synapse, duplex, worktree, doctor, canario, mesh
+Hash: a64e28892172
