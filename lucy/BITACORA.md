@@ -185,3 +185,9 @@ Titulo: Implementacion del Protocolo de Asimilacion Bidireccional
 Cuerpo: Incorporacion de cmd_asimilar y soporte lucy-payload. Permite ingerir conclusiones estructuradas desde modelos externos hacia la bitacora local via portapapeles con confirmacion interactiva.
 Tags: asimilacion, portabilidad, repl
 Hash: aa3a07cdc039
+
+## L-031 · 2026-10-22T16:02Z · DECISION
+Titulo: Auditoria de Riesgo Operativo: Proyecto Lagunillas (Zulia)
+Cuerpo: Analisis de viabilidad para ejecucion de proyecto temporal de 6 meses desde matriz en Maturin. Se descarta obligacion de sucursal mercantil bajo Codigo de Comercio, pero se identifican riesgos criticos en presiones del SEDEMAT Lagunillas y coaccion sindical de la COL. Se recomienda esquema de faena temporal y permiso municipal provisional.
+Tags: legal, fiscal, zulia, lagunillas, contratos, sedemat
+Hash: c8e883165f61
