@@ -1194,7 +1194,7 @@ def cmd_doctor(args) -> int:
     archivos = {
         "Bitacora Inmutable": BITACORA,
         "Estado Operativo": ESTADO,
-        "Especificacion V1": (HERE.parent / "boveda" / "SYNAPSE_V1_ESPECIFICACION.md"),
+        "Especificacion V1": BOVEDA / "arquitectura" / "SYNAPSE_V1_ESPECIFICACION.md",
     }
 
     print("\n[2/5] Archivos Nucleares:")
