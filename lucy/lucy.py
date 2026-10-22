@@ -1646,7 +1646,10 @@ def cmd_boveda(args) -> int:
     param = getattr(args, "param", "").strip()
 
     if accion in ["ls", "listar"]:
-        archivos = sorted(list(BOVEDA.rglob("*.md")))
+        archivos = sorted(
+            [a for a in BOVEDA.rglob("*.md") if a.is_file()],
+            key=lambda x: (str(x.parent), x.name.lower())
+        )
         if not archivos:
             print(f"[BOVEDA] Directorio vacio o sin documentos markdown ({BOVEDA}).")
             return 0
