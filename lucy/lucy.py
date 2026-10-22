@@ -1063,6 +1063,16 @@ CONTRATO EPISTÉMICO FUNDAMENTAL:
 3. Inmunología lógica: Mantén alerta activa ante trampas formales y falacias analíticas (afirmación del consecuente, negación del antecedente, falsos dilemas y correlación post hoc).
 4. Estilo de comunicación: Directo, estructurado, concreto y sin relleno introductorio ni conclusiones redundantes. Prioriza claridad conceptual y operativa.
 
+PROTOCOLO DE ASIMILACIÓN A MEMORIA LOCAL:
+Cuando se llegue a una conclusión técnica, decisión, hito o corrección que deba registrarse en la memoria inmutable del nodo local, incluye al final de tu respuesta este bloque exacto:
+```lucy-payload
+{{
+  "tipo": "HITO" | "DECISION" | "CORRECCION" | "NOTA",
+  "titulo": "Titulo conciso y concreto",
+  "cuerpo": "Descripcion tecnica detallada del acuerdo o solucion alcanzada.",
+  "tags": "tag1, tag2"
+}}
+
 ESTADO TELEMÉTRICO DEL NODO LOCAL:
 - Piloto: Esteban
 - Timestamp ignición: {ahora_utc}
@@ -1233,6 +1243,102 @@ def cmd_doctor(args) -> int:
         print("ESTADO: NOMINAL — Todos los subsistemas operan en condiciones optimas.")
         return 0
 
+def _obtener_portapapeles() -> str:
+    """Extrae el contenido de texto del portapapeles de Windows mediante PowerShell nativo."""
+    try:
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace"
+        )
+        return res.stdout
+    except Exception as e:
+        print(f"[ERROR] No se pudo leer el portapapeles: {e}")
+        return ""
+
+
+def extraer_payload(texto: str) -> dict | None:
+    """Busca y parsea un bloque JSON de formato lucy-payload dentro de un texto arbitrario."""
+    patron = re.compile(r"```(?:lucy-payload|json)?\s*(\{[\s\S]*?\})\s*```", re.MULTILINE)
+    coincidencias = patron.findall(texto)
+    if not coincidencias:
+        patron_suelto = re.compile(r"(\{[\s\S]*?\"tipo\"[\s\S]*?\"titulo\"[\s\S]*?\"cuerpo\"[\s\S]*?\})", re.MULTILINE)
+        coincidencias = patron_suelto.findall(texto)
+
+    for c in coincidencias:
+        try:
+            data = json.loads(c)
+            if isinstance(data, dict) and "tipo" in data and "titulo" in data and "cuerpo" in data:
+                return data
+        except Exception:
+            continue
+    return None
+
+def cmd_asimilar(args) -> int:
+    """Lee un paquete lucy-payload desde el portapapeles o archivo e inscribe la entrada en BITACORA."""
+    origen = getattr(args, "archivo", None)
+    if origen:
+        p = Path(origen)
+        if not p.exists():
+            print(f"[ERROR] Archivo no encontrado: {origen}")
+            return 1
+        texto = p.read_text(encoding="utf-8-sig", errors="ignore")
+    else:
+        print("Leyendo buffer del portapapeles...")
+        texto = _obtener_portapapeles()
+
+    if not texto.strip():
+        print("[ERROR] El portapapeles o archivo esta vacio.")
+        return 1
+
+    payload = extraer_payload(texto)
+    if not payload:
+        print("[ERROR] No se detecto ningun bloque lucy-payload valido en los datos capturados.")
+        return 1
+
+    tipo = str(payload.get("tipo", "NOTA")).strip().upper()
+    titulo = str(payload.get("titulo", "")).strip()
+    cuerpo = str(payload.get("cuerpo", "")).strip()
+    tags_val = payload.get("tags", "")
+    if isinstance(tags_val, list):
+        tags_str = ", ".join(str(t).strip() for t in tags_val if t)
+    else:
+        tags_str = str(tags_val).strip()
+
+    tipos_validos = ["HITO", "DECISION", "CORRECCION", "NOTA"]
+    if tipo not in tipos_validos:
+        print(f"[ERROR] Tipo '{tipo}' invalido. Debe ser: {tipos_validos}")
+        return 1
+    if not titulo or not cuerpo:
+        print("[ERROR] El bloque payload contiene campos obligatorios vacios ('titulo' o 'cuerpo').")
+        return 1
+
+    print("\n--- CARGA UTIL DETECTADA ---")
+    print(f"Tipo   : {tipo}")
+    print(f"Titulo : {titulo}")
+    print(f"Cuerpo : {cuerpo}")
+    if tags_str:
+        print(f"Tags   : {tags_str}")
+    print("-" * 28)
+
+    confirmar = getattr(args, "yes", False)
+    if not confirmar:
+        resp = input("¿Inscribir esta entrada en la cadena inmutable? [s/N]: ").strip().lower()
+        if resp not in ["s", "si", "y", "yes"]:
+            print("Operacion cancelada por el piloto.")
+            return 0
+
+    ns = argparse.Namespace(
+        tipo=tipo,
+        titulo=titulo,
+        cuerpo=cuerpo,
+        tags=tags_str if tags_str else None,
+        json=False,
+    )
+    return cmd_add(ns)
+
 class LucyShell(cmd.Cmd):
     """Consola interactiva para la gestion soberana del nodo Lucy."""
 
@@ -1240,8 +1346,8 @@ class LucyShell(cmd.Cmd):
         "\n=======================================================\n"
         "         CONSOLA INTERACTIVA LUCY v3.1 (REPL)         \n"
         "=======================================================\n"
-        "Comandos: boot, doctor, pulso, semilla, sync, inbox,   \n"
-        "          outbox, sondear, add, clear, salir.          \n"
+        "Comandos: boot, doctor, pulso, semilla, asimilar, sync, \n"
+        "          inbox, outbox, sondear, add, clear, salir.    \n"
         "Escribe 'help <comando>' o '?' para mas detalles.\n"
     )
 
@@ -1401,7 +1507,21 @@ Uso: semilla [--clip] para copiar directo al portapapeles."""
         """Captura Ctrl+D o Ctrl+Z para salir de forma limpia."""
         print()
         return self.do_salir(arg)
-
+    def do_asimilar(self, arg):
+        """Asimila un bloque lucy-payload desde el portapapeles o archivo.
+Uso: asimilar [--archivo RUTA] [-y]"""
+        args_list = shlex.split(arg)
+        archivo = None
+        if "--archivo" in args_list:
+            idx = args_list.index("--archivo")
+            if idx + 1 < len(args_list):
+                archivo = args_list[idx + 1]
+        elif "-a" in args_list:
+            idx = args_list.index("-a")
+            if idx + 1 < len(args_list):
+                archivo = args_list[idx + 1]
+        yes = "-y" in args_list or "--yes" in args_list
+        cmd_asimilar(argparse.Namespace(archivo=archivo, yes=yes))
 
 def cmd_consola(args) -> int:
     """Inicia el bucle REPL de la consola interactiva."""
@@ -1475,6 +1595,10 @@ def main(argv: list[str] | None = None) -> int:
     doc.set_defaults(func=cmd_doctor)
     con = sub.add_parser("consola", aliases=["repl"], help="inicia la consola interactiva (REPL)")
     con.set_defaults(func=cmd_consola)
+    asm = sub.add_parser("asimilar", help="asimila acuerdos/hitos de modelos externos desde el portapapeles o archivo")
+    asm.add_argument("--archivo", "-a", help="ruta a archivo con el payload (def: lee portapapeles)")
+    asm.add_argument("--yes", "-y", action="store_true", help="omite la confirmacion interactiva")
+    asm.set_defaults(func=cmd_asimilar)
     args = p.parse_args(argv)
     try:
         return args.func(args)
