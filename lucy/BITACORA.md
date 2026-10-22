@@ -158,3 +158,13 @@ Hash: cbba587ac9d4
 Titulo: Cierre de Frente de Procura
 Cuerpo: Cancelacion de la revision de demo de procura y del puente hacia MS Project por instruccion directa del piloto. Frente liberado a estado de reposo.
 Hash: 480b00781bfc
+
+## L-026 · 2026-10-21T21:42Z · HITO
+Titulo: Comando Semilla de Portabilidad Contextual
+Cuerpo: Incorporacion del subcomando semilla en lucy.py. Exporta contrato epistemico, directiva de identidad y telemetria viva para encender la instancia en modelos externos.
+Hash: dc883849d3ad
+
+## L-027 · 2026-10-22T00:08Z · HITO
+Titulo: Validacion Cruzada de Semilla e Inmunologia en Motor Externo
+Cuerpo: Prueba de ignicion exitosa en DeepSeek. Correccion del parser a cabeceras '## L-'. Superacion estricta del canario logico 01 sin concesiones de complacencia.
+Hash: 1416857d9776

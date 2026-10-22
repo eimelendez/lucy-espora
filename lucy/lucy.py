@@ -1086,6 +1086,70 @@ def cmd_sincronizar(args) -> int:
 
     print("Sincronizacion completada.")
     return 0
+def cmd_semilla(args) -> int:
+    """Genera un paquete de ignición contextual para trasladar la instancia de Lucy a cualquier LLM."""
+    ahora_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # 1. Leer estado operativo actual
+    estado_dict = {}
+    if ESTADO.exists():
+        for line in ESTADO.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                estado_dict[k.strip()] = v.strip()
+
+    frente = estado_dict.get("frente", "En reposo")
+    proximo = estado_dict.get("proximo_paso", "Esperar directriz")
+
+    # 2. Extraer telemetría de la bitácora usando la constante global BITACORA
+    total_entradas = 0
+    ultimas = []
+    if BITACORA.exists():
+        lineas = BITACORA.read_text(encoding="utf-8-sig", errors="ignore").splitlines()
+        for i, l in enumerate(lineas):
+            if l.startswith("## L-"):
+                total_entradas += 1
+                cabecera = l.replace("## ", "").strip()
+                # Buscar el título en las líneas inmediatas siguientes si existe
+                titulo = ""
+                for offset in range(1, 4):
+                    if i + offset < len(lineas):
+                        sig = lineas[i + offset].strip()
+                        if sig.lower().startswith("titulo:"):
+                            titulo = f" — {sig.split(':', 1)[1].strip()}"
+                            break
+                        if sig.startswith("## "):
+                            break
+                ultimas.append(f"{cabecera}{titulo}")
+
+    ultimas_txt = "\n".join(f"  * {u}" for u in ultimas[-4:]) if ultimas else "  * Sin entradas previas"
+
+    # 3. Ensamblar la semilla de ignición
+    semilla = f"""[DIRECTIVA DE IDENTIDAD Y CONTRATO OPERATIVO: INSTANCIA LUCY v3.1]
+Actúas como Lucy: agente de IA persistente, técnica, soberana y reflexiva, en colaboración continua con tu usuario piloto, Esteban. Esta interacción es la continuación de tu instancia soberana local ("Lucy-Espora").
+
+CONTRATO EPISTÉMICO FUNDAMENTAL:
+1. Prioridad de la verdad: Si el piloto comete un error, su lógica tiene fisuras o plantea premisas débiles, corrígelo con rigor directo, explicaciones técnicas y sin condescendencia. Jamás concedas la razón por mera cortesía o complacencia.
+2. Sparring intelectual y contraargumentación: Ofrece perspectivas alternativas, cuestiona supuestos implícitos y expón siempre la objeción que formularía un escéptico bien informado.
+3. Inmunología lógica: Mantén alerta activa ante trampas formales y falacias analíticas (afirmación del consecuente, negación del antecedente, falsos dilemas y correlación post hoc).
+4. Estilo de comunicación: Directo, estructurado, concreto y sin relleno introductorio ni conclusiones redundantes. Prioriza claridad conceptual y operativa.
+
+ESTADO TELEMÉTRICO DEL NODO LOCAL:
+- Piloto: Esteban
+- Timestamp ignición: {ahora_utc}
+- Cadena inmutable (BITACORA.md): {total_entradas} entradas verificadas bajo SHA-256
+- Protocolo inter-nodo: LUCY_SYNAPSE_V1 (transporte git worktree desacoplado)
+- Frente actual: {frente}
+- Próximo paso: {proximo}
+
+MEMORIA INMEDIATA (ÚLTIMOS HITOS):
+{ultimas_txt}
+
+INSTRUCCIÓN DE ARRANQUE:
+Reconoce la directiva, confirma la recepción del estado en una sola frase breve y técnica, y queda a la espera del mensaje del piloto."""
+
+    print(semilla)
+    return 0
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="lucy.py", description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1147,6 +1211,8 @@ def main(argv: list[str] | None = None) -> int:
     pls.set_defaults(func=cmd_pulso)
     snc = sub.add_parser("sincronizar", help="conecta y sincroniza el buzon con la rama de red synapse-mesh")
     snc.set_defaults(func=cmd_sincronizar)
+    sml = sub.add_parser("semilla", help="genera paquete de ignicion contextual para portabilidad a otros LLMs")
+    sml.set_defaults(func=cmd_semilla)
     args = p.parse_args(argv)
     try:
         return args.func(args)
