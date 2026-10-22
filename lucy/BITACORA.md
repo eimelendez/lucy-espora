@@ -208,3 +208,9 @@ Titulo: Implementacion del Subsistema Boveda y Taxonomia Tematica
 Cuerpo: Habilitacion de comandos boveda (ls, ver, buscar) en REPL, reglas de transito en .gitignore, purga de cuarentena y migracion taxonomica a arquitectura, legal_fiscal y epistemologia.
 Tags: boveda, taxonomica, repl, gitignore
 Hash: d222075f40ea
+
+## L-035 · 2026-10-22T19:46Z · DECISION
+Titulo: Reconfiguracion Integral del Perfil Laboral a Project Management
+Cuerpo: Expansion de directiva laboral desde contingencia legal/fiscal hacia direccion de proyectos EPC, automatizacion critica IEC 61511, turbomaquinaria y procura estrategica, alineada con aspiracion a Project Manager.
+Tags: perfil, laboral, pm, epc, boveda
+Hash: 6bda33537956

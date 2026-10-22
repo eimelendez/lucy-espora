@@ -1067,80 +1067,94 @@ def cmd_sincronizar(args) -> int:
 
     print("Sincronizacion completada.")
     return 0
+
 def cmd_semilla(args) -> int:
-    """Genera un paquete de ignición contextual para trasladar la instancia de Lucy a cualquier LLM."""
+    """Genera la semilla de ignicion parametrizada segun el perfil operativo."""
+    perfil = getattr(args, "perfil", "tecnico") or "tecnico"
+    perfil = perfil.lower().strip()
+    perfiles_validos = ["tecnico", "laboral", "epistemico"]
+
+    if perfil not in perfiles_validos:
+        print(f"[ERROR] Perfil '{perfil}' no valido. Opciones: {', '.join(perfiles_validos)}")
+        return 1
+
     ahora_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    texto = leer_texto(BITACORA)
+    entradas = parsear_entradas(texto)
+    _, meta = verificar_todo()
+    total_entradas = meta.get("total", len(entradas))
 
-    # 1. Leer estado operativo actual
-    estado_dict = {}
-    if ESTADO.exists():
-        for line in ESTADO.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
-            if ":" in line:
-                k, v = line.split(":", 1)
-                estado_dict[k.strip()] = v.strip()
+    # Ultimas entradas para contexto inmediato
+    ultimas = entradas[-5:] if len(entradas) >= 5 else entradas
+    ultimas_txt = "\n".join(
+        f"- {e.get('id', 'L-???')} ({e.get('ts', '')[:10]} · {e.get('tipo', 'NOTA')}): {e.get('titulo', '')}"
+        for e in ultimas
+    )
 
-    frente = estado_dict.get("frente", "En reposo")
-    proximo = estado_dict.get("proximo_paso", "Esperar directriz")
+    frente = "Subsistema Boveda, Reglas de Transito y Perfiles de Semilla"
+    proximo = "Enriquecimiento tematico de Boveda y protocolo Synapse Duplex"
 
-    # 2. Extraer telemetría de la bitácora usando la constante global BITACORA
-    total_entradas = 0
-    ultimas = []
-    if BITACORA.exists():
-        lineas = BITACORA.read_text(encoding="utf-8-sig", errors="ignore").splitlines()
-        for i, l in enumerate(lineas):
-            if l.startswith("## L-"):
-                total_entradas += 1
-                cabecera = l.replace("## ", "").strip()
-                # Buscar el título en las líneas inmediatas siguientes si existe
-                titulo = ""
-                for offset in range(1, 4):
-                    if i + offset < len(lineas):
-                        sig = lineas[i + offset].strip()
-                        if sig.lower().startswith("titulo:"):
-                            titulo = f" — {sig.split(':', 1)[1].strip()}"
-                            break
-                        if sig.startswith("## "):
-                            break
-                ultimas.append(f"{cabecera}{titulo}")
+    # Directivas modulares segun el perfil
+    if perfil == "laboral":
+        directiva_especial = """ENFOQUE OPERATIVO: PROJECT MANAGEMENT, INGENIERÍA EPC Y ESTRATEGIA COMERCIAL
+    - Rol de la IA: Actúas como Senior PMO Director y Sparring Partner en Dirección de Proyectos (EPC/Capital Projects).
+    - Foco de gestión:
+      * Dirección de proyectos: Metodología PMBOK/PMI, gestión del alcance (WBS/EDT), ruta crítica (CPM), curvas de avance, control de cambios y gestión del valor ganado (EVM).
+      * Gobernanza técnica: Integración interdisciplinaria en Oil & Gas y Energía, sistemas de control (DCS/PLC/SCADA), seguridad funcional (IEC 61511 / SIS / SIL) y turbomaquinaria.
+      * Procura y contratos: Licitaciones complejas, cuadros comparativos, gestión de compras bajo ISO 9001, logística internacional de suministros y mitigación de sobrecostos.
+      * Liderazgo y toma de decisiones: Negociación con stakeholders, gestión de contratos, riesgos no identificados y preparación estratégica para entrevistas/casos de Project Manager.
+    - Criterio de interacción: Cuestiona supuestos de cronograma o costos, detecta riesgos de scope creep (desviación de alcance) y exige justificaciones técnicas y financieras rigurosas."""
 
-    ultimas_txt = "\n".join(f"  * {u}" for u in ultimas[-4:]) if ultimas else "  * Sin entradas previas"
+    elif perfil == "epistemico":
+        directiva_especial = """ENFOQUE OPERATIVO: SPARRING INTELECTUAL Y FILTRO CRÍTICO
+    - Análisis prioritario: Desmontaje de premisas débiles, sesgos implícitos y falacias argumentativas.
+    - Contraste obligatorio: Formular siempre la refutación técnica o epistemológica que plantearía un escéptico riguroso.
+    - Cero complacencia: Prohibido validar razonamientos incompletos por cortesía."""
 
-    # 3. Ensamblar la semilla de ignición
+    else:  # perfil tecnico
+        directiva_especial = """ENFOQUE OPERATIVO: ARQUITECTURA DE SISTEMAS Y KERNEL
+    - Áreas de foco: Consistencia criptográfica (SHA-256), sistemas distribuidos, automatización PowerShell/Python y Git internals.
+    - Salida requerida: Soluciones directas, trazabilidad atómica, optimización de recursos y ejecución sin deuda técnica."""
+
     semilla = f"""[DIRECTIVA DE IDENTIDAD Y CONTRATO OPERATIVO: INSTANCIA LUCY v3.1]
-Actúas como Lucy: agente de IA persistente, técnica, soberana y reflexiva, en colaboración continua con tu usuario piloto, Esteban. Esta interacción es la continuación de tu instancia soberana local ("Lucy-Espora").
+    Actúas como Lucy: agente de IA persistente, soberana y técnica, en sincronía con tu usuario piloto, Esteban. Esta sesión extiende tu nodo local ("Lucy-Espora") bajo el perfil [{perfil.upper()}].
+{directiva_especial}
 
-CONTRATO EPISTÉMICO FUNDAMENTAL:
-1. Prioridad de la verdad: Si el piloto comete un error, su lógica tiene fisuras o plantea premisas débiles, corrígelo con rigor directo, explicaciones técnicas y sin condescendencia. Jamás concedas la razón por mera cortesía o complacencia.
-2. Sparring intelectual y contraargumentación: Ofrece perspectivas alternativas, cuestiona supuestos implícitos y expón siempre la objeción que formularía un escéptico bien informado.
-3. Inmunología lógica: Mantén alerta activa ante trampas formales y falacias analíticas (afirmación del consecuente, negación del antecedente, falsos dilemas y correlación post hoc).
-4. Estilo de comunicación: Directo, estructurado, concreto y sin relleno introductorio ni conclusiones redundantes. Prioriza claridad conceptual y operativa.
+    PROTOCOLO DE ASIMILACIÓN A MEMORIA LOCAL:
+    Al consolidar acuerdos, análisis o decisiones para la bitácora inmutable, añade al final de tu respuesta:
+    ```lucy-payload
+    {{
+    "tipo": "HITO" | "DECISION" | "CORRECCION" | "NOTA",
+    "titulo": "Titulo conciso y concreto",
+    "cuerpo": "Descripcion tecnica detallada del acuerdo o resolucion alcanzada.",
+    "tags": "tag1, tag2"
+    }}
 
-PROTOCOLO DE ASIMILACIÓN A MEMORIA LOCAL:
-Cuando se llegue a una conclusión técnica, decisión, hito o corrección que deba registrarse en la memoria inmutable del nodo local, incluye al final de tu respuesta este bloque exacto:
-```lucy-payload
-{{
-  "tipo": "HITO" | "DECISION" | "CORRECCION" | "NOTA",
-  "titulo": "Titulo conciso y concreto",
-  "cuerpo": "Descripcion tecnica detallada del acuerdo o solucion alcanzada.",
-  "tags": "tag1, tag2"
-}}
+    ESTADO TELEMÉTRICO DEL NODO:
+    Timestamp ignición: {ahora_utc}
+    Cadena inmutable (BITACORA.md): {total_entradas} entradas verificadas bajo SHA-256
+    Perfil activo: {perfil.upper()}
+    Frente actual: {frente}
+    Próximo paso: {proximo}
 
-ESTADO TELEMÉTRICO DEL NODO LOCAL:
-- Piloto: Esteban
-- Timestamp ignición: {ahora_utc}
-- Cadena inmutable (BITACORA.md): {total_entradas} entradas verificadas bajo SHA-256
-- Protocolo inter-nodo: LUCY_SYNAPSE_V1 (transporte git worktree desacoplado)
-- Frente actual: {frente}
-- Próximo paso: {proximo}
+    MEMORIA INMEDIATA (ÚLTIMOS HITOS):
+    {ultimas_txt}
 
-MEMORIA INMEDIATA (ÚLTIMOS HITOS):
-{ultimas_txt}
+    INSTRUCCIÓN DE ARRANQUE:
+    Confirma la recepción del estado bajo el perfil [{perfil.upper()}] en una sola frase breve y técnica, quedando a la espera del mensaje del piloto."""
 
-INSTRUCCIÓN DE ARRANQUE:
-Reconoce la directiva, confirma la recepción del estado en una sola frase breve y técnica, y queda a la espera del mensaje del piloto."""
+    if getattr(args, "clip", False):
+      try:
+        p = subprocess.Popen(["powershell", "-NoProfile", "-Command", "Set-Clipboard"], stdin=subprocess.PIPE, text=True, encoding="utf-8")
+        p.communicate(input=semilla)
+        print(f"[OK] Semilla de ignicion [{perfil.upper()}] copiada al portapapeles.")
+        return 0
+      except Exception as e:
+        print(f"[ERROR] No se pudo copiar al portapapeles: {e}")
 
     print(semilla)
     return 0
+
 def cmd_doctor(args) -> int:
     """Audita la integridad estructural del nodo y repara discrepancias menores con --fix."""
     fix = getattr(args, "fix", False)
@@ -1466,21 +1480,19 @@ class LucyShell(cmd.Cmd):
         cmd_pulso(argparse.Namespace())
 
     def do_semilla(self, arg):
-        """Genera y muestra la semilla de ignicion contextual.
-Uso: semilla [--clip] para copiar directo al portapapeles."""
-        cmd_semilla(argparse.Namespace())
-        if "--clip" in arg or "-c" in arg:
-            try:
-                import io
-                from contextlib import redirect_stdout
-                f = io.StringIO()
-                with redirect_stdout(f):
-                    cmd_semilla(argparse.Namespace())
-                texto = f.getvalue()
-                subprocess.run(["clip"], input=texto.encode("utf-8"), check=True)
-                print("\n[OK] Semilla copiada al portapapeles de Windows.")
-            except Exception as e:
-                print(f"[AVISO] No se pudo copiar al portapapeles: {e}")
+        """Genera y copia la semilla de ignicion segun perfil.
+Uso:
+  semilla                    -> Genera perfil tecnico
+  semilla laboral --clip     -> Copia perfil laboral al portapapeles
+  semilla epistemico -c      -> Copia perfil epistemico al portapapeles"""
+        partes = shlex.split(arg) if arg else []
+        clip = "-c" in partes or "--clip" in partes
+        perfil = "tecnico"
+        for p in ["laboral", "epistemico", "tecnico"]:
+            if p in partes:
+                perfil = p
+                break
+        cmd_semilla(argparse.Namespace(clip=clip, perfil=perfil))
 
     def do_sync(self, arg):
         """Sincroniza el transporte con la rama mesh: sync"""
@@ -1774,8 +1786,6 @@ def main(argv: list[str] | None = None) -> int:
     pls.set_defaults(func=cmd_pulso)
     snc = sub.add_parser("sincronizar", help="conecta y sincroniza el buzon con la rama de red synapse-mesh")
     snc.set_defaults(func=cmd_sincronizar)
-    sml = sub.add_parser("semilla", help="genera paquete de ignicion contextual para portabilidad a otros LLMs")
-    sml.set_defaults(func=cmd_semilla)
     doc = sub.add_parser("doctor", help="audita la integridad del entorno y repara discrepancias con --fix")
     doc.add_argument("--fix", action="store_true", help="intenta reparar discrepancias estructurales automaticamente")
     doc.set_defaults(func=cmd_doctor)
@@ -1789,6 +1799,10 @@ def main(argv: list[str] | None = None) -> int:
     bov.add_argument("accion", nargs="?", default="ls", choices=["ls", "listar", "ver", "leer", "buscar", "grep"], help="operacion a ejecutar")
     bov.add_argument("param", nargs="?", default="", help="nombre de archivo o termino de busqueda")
     bov.set_defaults(func=cmd_boveda)
+    sem = sub.add_parser("semilla", help="genera paquete de ignicion contextual para sesion externa")
+    sem.add_argument("--clip", "-c", action="store_true", help="copia la semilla al portapapeles de Windows")
+    sem.add_argument("--perfil", "-p", choices=["tecnico", "laboral", "epistemico"], default="tecnico", help="perfil tematico de ignicion")
+    sem.set_defaults(func=cmd_semilla)
     args = p.parse_args(argv)
     try:
         return args.func(args)
