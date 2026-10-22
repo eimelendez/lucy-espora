@@ -214,3 +214,9 @@ Titulo: Reconfiguracion Integral del Perfil Laboral a Project Management
 Cuerpo: Expansion de directiva laboral desde contingencia legal/fiscal hacia direccion de proyectos EPC, automatizacion critica IEC 61511, turbomaquinaria y procura estrategica, alineada con aspiracion a Project Manager.
 Tags: perfil, laboral, pm, epc, boveda
 Hash: 6bda33537956
+
+## L-036 · 2026-10-22T19:48Z · HITO
+Titulo: Parametrizacion Modular de Semillas y Perfil PM
+Cuerpo: Correccion de lectura canonica en cmd_semilla (leer_texto/parsear_entradas) y despliegue de perfiles especializados: tecnico, epistemico y laboral (Project Management EPC / IEC 61511).
+Tags: semilla, perfiles, pm, kernel, fix
+Hash: 62d130e92879
