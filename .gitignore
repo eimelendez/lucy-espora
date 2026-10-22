@@ -5,3 +5,9 @@ lucy/_pruebas/
 lucy/ESTADO.md
 
 lucy/transito/
+
+# --- REGLAS DE TRANSITO INTER-NODO (SYNAPSE) ---
+lucy/buzon/inbox/*.synapse
+lucy/buzon/outbox/*.synapse
+lucy/cuarentena/*.synapse
+!lucy/**/.gitkeep

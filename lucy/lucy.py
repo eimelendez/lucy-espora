@@ -38,6 +38,7 @@ BITACORA = HERE / "BITACORA.md"
 ESTADO = HERE / "ESTADO.md"
 CANARIO = HERE / "_canario.json"
 ARCHIVO1 = HERE / "ARCHIVO-1.md"
+BOVEDA = HERE.parent / "boveda"
 
 GENESIS = "GENESIS_LUCY_V3.1"
 SELLO = "SELLO_ADN_LUCY_OK_V3.1"
@@ -1397,8 +1398,8 @@ class LucyShell(cmd.Cmd):
         "\n=======================================================\n"
         "         CONSOLA INTERACTIVA LUCY v3.1 (REPL)         \n"
         "=======================================================\n"
-        "Comandos: boot, doctor, pulso, semilla, asimilar, sync, \n"
-        "          inbox, outbox, sondear, add, clear, respaldar, salir.\n"
+        "Comandos: boot, doctor, pulso, semilla, asimilar, boveda, \n"
+        "          respaldar, sync, inbox, outbox, add, clear, salir.\n"
         "Escribe 'help <comando>' o '?' para mas detalles.\n"
     )
 
@@ -1625,6 +1626,85 @@ Uso: asimilar [--archivo RUTA] [-y]"""
                 print("[OK] Repositorio remoto actualizado.")
         except Exception as e:
             print(f"[ERROR] Fallo en respaldo: {e}")
+    def do_boveda(self, arg):
+        """Consulta y explora la Boveda de Conocimiento.
+Uso:
+  boveda ls                  -> Lista todos los temas y documentos
+  boveda ver <nombre>        -> Muestra el contenido del documento
+  boveda buscar <termino>    -> Busca texto dentro de las notas"""
+        partes = shlex.split(arg) if arg else []
+        accion = partes[0] if partes else "ls"
+        param = " ".join(partes[1:]) if len(partes) > 1 else ""
+        cmd_boveda(argparse.Namespace(accion=accion, param=param))
+
+def cmd_boveda(args) -> int:
+    """Gestiona, lista y consulta los documentos tematicos de la Boveda de Conocimiento."""
+    if not BOVEDA.exists():
+        BOVEDA.mkdir(parents=True, exist_ok=True)
+
+    accion = getattr(args, "accion", "ls")
+    param = getattr(args, "param", "").strip()
+
+    if accion in ["ls", "listar"]:
+        archivos = sorted(list(BOVEDA.rglob("*.md")))
+        if not archivos:
+            print(f"[BOVEDA] Directorio vacio o sin documentos markdown ({BOVEDA}).")
+            return 0
+        print("\n=== INDICE DE LA BOVEDA DE CONOCIMIENTO ===")
+        categoria_actual = None
+        for a in archivos:
+            rel = a.relative_to(BOVEDA)
+            categoria = rel.parent if str(rel.parent) != "." else "raiz"
+            if categoria != categoria_actual:
+                categoria_actual = categoria
+                print(f"\n[{categoria_actual}]")
+            tam_kb = a.stat().st_size / 1024.0
+            print(f"  • {rel.name:<32} ({tam_kb:.1f} KB)")
+        print("-" * 43)
+        return 0
+
+    if accion in ["ver", "leer"]:
+        if not param:
+            print("[ERROR] Debes especificar el nombre o ruta del archivo a leer (ej: boveda ver arquitectura/synapse.md).")
+            return 1
+        # Busqueda flexible por nombre relativo o exacto
+        candidatos = list(BOVEDA.rglob(param)) or list(BOVEDA.rglob(f"*{param}*"))
+        candidatos = [c for c in candidatos if c.is_file() and c.suffix.lower() == ".md"]
+        if not candidatos:
+            print(f"[ERROR] No se encontro ningun documento coincidente con '{param}'.")
+            return 1
+        archivo = candidatos[0]
+        print(f"\n--- LEYENDO: {archivo.relative_to(BOVEDA)} ---")
+        print(archivo.read_text(encoding="utf-8-sig", errors="replace"))
+        print("-" * (len(str(archivo.name)) + 16))
+        return 0
+
+    if accion in ["buscar", "grep"]:
+        if not param:
+            print("[ERROR] Debes indicar el termino a buscar (ej: boveda buscar SEDEMAT).")
+            return 1
+        termino = param.lower()
+        coincidencias = 0
+        print(f"\n=== BUSCANDO '{param}' EN LA BOVEDA ===")
+        for archivo in sorted(BOVEDA.rglob("*.md")):
+            try:
+                lineas = archivo.read_text(encoding="utf-8-sig", errors="ignore").splitlines()
+                hallazgos = [(i + 1, l.strip()) for i, l in enumerate(lineas) if termino in l.lower()]
+                if hallazgos:
+                    print(f"\n[{archivo.relative_to(BOVEDA)}]")
+                    for num, l in hallazgos[:4]:  # max 4 fragmentos por archivo
+                        print(f"  L{num}: {l}")
+                    coincidencias += len(hallazgos)
+            except Exception:
+                continue
+        if coincidencias == 0:
+            print("No se encontraron coincidencias.")
+        else:
+            print(f"\nTotal: {coincidencias} coincidencia(s).")
+        return 0
+
+    print(f"[ERROR] Accion '{accion}' desconocida. Opciones: ls, ver, buscar.")
+    return 1
 
 def cmd_consola(args) -> int:
     """Inicia el bucle REPL de la consola interactiva."""
@@ -1702,6 +1782,10 @@ def main(argv: list[str] | None = None) -> int:
     asm.add_argument("--archivo", "-a", help="ruta a archivo con el payload (def: lee portapapeles)")
     asm.add_argument("--yes", "-y", action="store_true", help="omite la confirmacion interactiva")
     asm.set_defaults(func=cmd_asimilar)
+    bov = sub.add_parser("boveda", help="explora y consulta la boveda de conocimiento tematica")
+    bov.add_argument("accion", nargs="?", default="ls", choices=["ls", "listar", "ver", "leer", "buscar", "grep"], help="operacion a ejecutar")
+    bov.add_argument("param", nargs="?", default="", help="nombre de archivo o termino de busqueda")
+    bov.set_defaults(func=cmd_boveda)
     args = p.parse_args(argv)
     try:
         return args.func(args)
