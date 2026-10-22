@@ -191,3 +191,9 @@ Titulo: Auditoria de Riesgo Operativo: Proyecto Lagunillas (Zulia)
 Cuerpo: Analisis de viabilidad para ejecucion de proyecto temporal de 6 meses desde matriz en Maturin. Se descarta obligacion de sucursal mercantil bajo Codigo de Comercio, pero se identifican riesgos criticos en presiones del SEDEMAT Lagunillas y coaccion sindical de la COL. Se recomienda esquema de faena temporal y permiso municipal provisional.
 Tags: legal, fiscal, zulia, lagunillas, contratos, sedemat
 Hash: c8e883165f61
+
+## L-032 · 2026-10-22T16:19Z · DECISION
+Titulo: AUTO RESPALDO
+Cuerpo: Eliminar fricción y evitar que entradas locales queden huérfanas sin respaldo remoto.
+Tags: respaldo, soncronizacion
+Hash: 22ea6913bed3

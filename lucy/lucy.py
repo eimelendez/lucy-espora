@@ -721,6 +721,52 @@ def cmd_sello(args) -> int:
     print(SELLO)
     return 0
 
+def _auto_respaldo_git(ident: str, titulo: str) -> None:
+    """Ejecuta add, commit y push automatico para asegurar la entrada en el repositorio remoto."""
+    print(f"\n[AUTO-SYNC] Asegurando {ident} en control de versiones...")
+    raiz_repo = HERE.parent  # Directorio raiz de Lucy-Espora
+
+    try:
+        # 1. git add
+        subprocess.run(
+            ["git", "-C", str(raiz_repo), "add", "lucy/BITACORA.md", "lucy/lucy.py"],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+        # 2. git commit
+        mensaje = f"{ident}: {titulo}"
+        res_commit = subprocess.run(
+            ["git", "-C", str(raiz_repo), "commit", "-m", mensaje],
+            capture_output=True,
+            text=True
+        )
+
+        if "nothing to commit" in res_commit.stdout:
+            print("  [OK] Sin cambios pendientes para commit.")
+            return
+
+        print(f"  [OK] Commit local generado: '{mensaje}'")
+
+        # 3. git push (con timeout defensivo por si hay cortes de red)
+        print("  [SYNC] Enviando a origin main...")
+        res_push = subprocess.run(
+            ["git", "-C", str(raiz_repo), "push", "origin", "main"],
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+
+        if res_push.returncode == 0:
+            print("  [OK] Sincronizacion remota completada exitosamente.")
+        else:
+            print(f"  [AVISO] Commit preservado localmente, pero push no concluyo:\n{res_push.stderr.strip()}")
+
+    except subprocess.TimeoutExpired:
+        print("  [AVISO] Tiempo de espera agotado al hacer push. El commit local quedo seguro.")
+    except Exception as e:
+        print(f"  [AVISO] No se pudo completar el auto-respaldo git: {e}")
 
 def cmd_add(args) -> int:
     texto = leer_texto(BITACORA)
@@ -760,6 +806,9 @@ def cmd_add(args) -> int:
 
     base = texto if texto.endswith("\n") else texto + "\n"
     escribir_atomico(BITACORA, base + "\n".join(lineas) + "\n")
+    
+    # Disparar auto-sincronizacion desatendida
+    _auto_respaldo_git(ident, titulo_n)
 
     if args.json:
         print(json.dumps({"id": ident, "hash": h, "tipo": tipo, "ts": ts}, ensure_ascii=False))
@@ -1347,7 +1396,7 @@ class LucyShell(cmd.Cmd):
         "         CONSOLA INTERACTIVA LUCY v3.1 (REPL)         \n"
         "=======================================================\n"
         "Comandos: boot, doctor, pulso, semilla, asimilar, sync, \n"
-        "          inbox, outbox, sondear, add, clear, salir.    \n"
+        "          inbox, outbox, sondear, add, clear, respaldar, salir.\n"
         "Escribe 'help <comando>' o '?' para mas detalles.\n"
     )
 
@@ -1522,6 +1571,22 @@ Uso: asimilar [--archivo RUTA] [-y]"""
                 archivo = args_list[idx + 1]
         yes = "-y" in args_list or "--yes" in args_list
         cmd_asimilar(argparse.Namespace(archivo=archivo, yes=yes))
+
+    def do_respaldar(self, arg):
+        """Sube manualmente cambios pendientes al repositorio remoto: respaldar [mensaje]"""
+        msg = arg.strip() if arg.strip() else "Sincronizacion manual desde consola REPL"
+        raiz = HERE.parent
+        try:
+            subprocess.run(["git", "-C", str(raiz), "add", "."], check=True)
+            res = subprocess.run(["git", "-C", str(raiz), "commit", "-m", msg], capture_output=True, text=True)
+            if "nothing to commit" in res.stdout:
+                print("No hay cambios pendientes por respaldar.")
+            else:
+                print(f"[OK] Commit: {msg}")
+                subprocess.run(["git", "-C", str(raiz), "push", "origin", "main"], check=True)
+                print("[OK] Repositorio remoto actualizado.")
+        except Exception as e:
+            print(f"[ERROR] Fallo en respaldo: {e}")
 
 def cmd_consola(args) -> int:
     """Inicia el bucle REPL de la consola interactiva."""
